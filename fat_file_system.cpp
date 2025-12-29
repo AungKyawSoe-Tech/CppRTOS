@@ -141,6 +141,10 @@ bool FATFileSystem::createFile(const std::string& path, size_t initial_size) {
         return false;
     }
     
+    // Mark first cluster as allocated
+    FATCluster& first = fat_table.getRef(first_cluster);
+    first.is_allocated = true;
+    
     // Create file control block
     FileControlBlock new_file(path, first_cluster, false);
     new_file.file_size = initial_size;
