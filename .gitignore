@@ -26,3 +26,5 @@ Makefile
 # OS
 .DS_Store
 Thumbs.db
+_codeql_*
+build/
