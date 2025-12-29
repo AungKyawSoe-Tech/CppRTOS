@@ -41,6 +41,8 @@ public:
     void deleteFromPosition(int position);
     bool search(T value) const;
     T get(int position) const;
+    T& getRef(int position);  // ADD THIS: returns reference
+    const T& getConstRef(int position) const;  // ADD THIS: returns const reference
     void update(int position, T newValue);
     void reverse();
     void clear();

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SinglyLinkedList CXX)
+project(FATFileSystem CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -12,26 +12,38 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR})
 
-# Create executable - ONLY main.cpp needed now
-add_executable(singly_linked_list_demo 
+# 1. Original linked list demo
+add_executable(linkedlist_demo 
     main.cpp
+    singly_linked_list.cpp
 )
 
-# Set target properties for better visibility
-set_target_properties(singly_linked_list_demo PROPERTIES
-    OUTPUT_NAME "linkedlist_demo"
+# 2. Comprehensive FAT test suite
+add_executable(fat_comprehensive_test
+    test_fat_fs_comprehensive.cpp
+    singly_linked_list.cpp
+    fat_file_system.cpp
+)
+
+# 3. Interactive FAT test
+add_executable(fat_interactive_test
+    interactive_test.cpp
+    singly_linked_list.cpp
+    fat_file_system.cpp
+)
+
+# Set target properties
+set_target_properties(linkedlist_demo fat_comprehensive_test fat_interactive_test
+    PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-# Enable testing if you want to add tests later
+# Enable testing
 enable_testing()
 
-# Add a test for the executable (optional)
-add_test(NAME RunLinkedListDemo 
-    COMMAND singly_linked_list_demo
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
+# Add tests
+add_test(NAME FATComprehensiveTest COMMAND fat_comprehensive_test)
+add_test(NAME LinkedlistDemo COMMAND linkedlist_demo)
 
-message(STATUS "Project Name: ${PROJECT_NAME}")
+message(STATUS "Project: FAT File System Test Suite")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
