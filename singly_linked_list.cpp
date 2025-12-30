@@ -4,8 +4,6 @@
 #include <iostream>
 #include "singly_linked_list.h"
 
-using namespace std;
-
 // Check if list is empty
 template <typename T>
 bool SinglyLinkedList<T>::isEmpty() const {
@@ -50,7 +48,7 @@ void SinglyLinkedList<T>::insertAtEnd(T value) {
 template <typename T>
 void SinglyLinkedList<T>::insertAtPosition(T value, int position) {
     if (position < 0 || position > size) {
-        cout << "Invalid position!" << endl;
+        std::cout << "Invalid position!" << std::endl;
         return;
     }
         
@@ -77,7 +75,7 @@ void SinglyLinkedList<T>::insertAtPosition(T value, int position) {
 template <typename T>
 void SinglyLinkedList<T>::deleteFromBeginning() {
     if (isEmpty()) {
-        cout << "List is empty!" << endl;
+        std::cout << "List is empty!" << std::endl;
         return;
     }
         
@@ -96,7 +94,7 @@ void SinglyLinkedList<T>::deleteFromBeginning() {
 template <typename T>
 void SinglyLinkedList<T>::deleteFromEnd() {
     if (isEmpty()) {
-        cout << "List is empty!" << endl;
+        std::cout << "List is empty!" << std::endl;
         return;
     }
         
@@ -122,7 +120,7 @@ void SinglyLinkedList<T>::deleteFromEnd() {
 template <typename T>
 void SinglyLinkedList<T>::deleteFromPosition(int position) {
     if (position < 0 || position >= size) {
-        cout << "Invalid position!" << endl;
+        std::cout << "Invalid position!" << std::endl;
         return;
     }
         
@@ -160,11 +158,41 @@ bool SinglyLinkedList<T>::search(T value) const {
     return false;
 }
     
-// Get value at position
+// Get value at position (returns copy)
 template <typename T>
 T SinglyLinkedList<T>::get(int position) const {
     if (position < 0 || position >= size) {
-        throw out_of_range("Position out of range");
+        throw std::out_of_range("Position out of range");
+    }
+        
+    Node<T>* current = head;
+    for (int i = 0; i < position; i++) {
+        current = current->next;
+    }
+        
+    return current->data;
+}
+
+// Get reference at position (returns reference)
+template <typename T>
+T& SinglyLinkedList<T>::getRef(int position) {
+    if (position < 0 || position >= size) {
+        throw std::out_of_range("Position out of range");
+    }
+        
+    Node<T>* current = head;
+    for (int i = 0; i < position; i++) {
+        current = current->next;
+    }
+        
+    return current->data;
+}
+
+// Get const reference at position
+template <typename T>
+const T& SinglyLinkedList<T>::getConstRef(int position) const {
+    if (position < 0 || position >= size) {
+        throw std::out_of_range("Position out of range");
     }
         
     Node<T>* current = head;
@@ -179,7 +207,7 @@ T SinglyLinkedList<T>::get(int position) const {
 template <typename T>
 void SinglyLinkedList<T>::update(int position, T newValue) {
     if (position < 0 || position >= size) {
-        cout << "Invalid position!" << endl;
+        std::cout << "Invalid position!" << std::endl;
         return;
     }
         
@@ -226,26 +254,26 @@ void SinglyLinkedList<T>::clear() {
 template <typename T>
 void SinglyLinkedList<T>::display() const {
     if (isEmpty()) {
-        cout << "List is empty!" << endl;
+        std::cout << "List is empty!" << std::endl;
         return;
     }
         
     Node<T>* current = head;
-    cout << "List: ";
+    std::cout << "List: ";
     while (current != nullptr) {
-        cout << current->data;
+        std::cout << current->data;
         if (current->next != nullptr) {
-            cout << " -> ";
+            std::cout << " -> ";
         }
         current = current->next;
     }
-    cout << endl;
+    std::cout << std::endl;
 }
     
 // Display list size
 template <typename T>
 void SinglyLinkedList<T>::displaySize() const {
-    cout << "Size: " << size << endl;
+    std::cout << "Size: " << size << std::endl;
 }
 
 #endif // SINGLY_LINKED_LIST_CPP
