@@ -107,10 +107,39 @@ void FATFileSystem::freeClusterChain(int start_cluster) {
 }
 
 FileControlBlock* FATFileSystem::findFile(const std::string& path) {
-    // Simplified path lookup - in real FS would handle full paths
+    // Basic path-aware lookup: handle leading '/', directory separators, and basename matches.
+    // This still uses a flat directory list but allows simple hierarchical-style paths.
+
+    // Normalize input path: remove leading '/' and extract the target filename component.
+    std::string normalized_path = path;
+    if (!normalized_path.empty() && (normalized_path[0] == '/' || normalized_path[0] == '\\')) {
+        normalized_path.erase(0, 1);
+    }
+    std::string::size_type sep_pos = normalized_path.find_last_of("/\\");
+    std::string target_name = (sep_pos == std::string::npos)
+                              ? normalized_path
+                              : normalized_path.substr(sep_pos + 1);
+
     for (int i = 0; i < directory.getSize(); i++) {
         FileControlBlock& fcb = directory.getRef(i);
-        if (fcb.filename == path) {
+
+        // Normalize stored filename in the same way.
+        std::string fcb_path = fcb.filename;
+        if (!fcb_path.empty() && (fcb_path[0] == '/' || fcb_path[0] == '\\')) {
+            fcb_path.erase(0, 1);
+        }
+
+        // Prefer exact normalized path match if available.
+        if (!normalized_path.empty() && fcb_path == normalized_path) {
+            return &fcb;
+        }
+
+        // Fallback: compare only the basename (last path component).
+        std::string::size_type fcb_sep_pos = fcb_path.find_last_of("/\\");
+        std::string fcb_name = (fcb_sep_pos == std::string::npos)
+                               ? fcb_path
+                               : fcb_path.substr(fcb_sep_pos + 1);
+        if (!target_name.empty() && fcb_name == target_name) {
             return &fcb;
         }
     }
