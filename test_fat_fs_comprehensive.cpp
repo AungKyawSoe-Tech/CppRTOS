@@ -279,7 +279,7 @@ void testFileSystemIntegrity() {
 }
 
 void testConcurrentOperations() {
-    FATTestHarness harness("Concurrent-like Operations", 2048, 1024);
+    FATTestHarness harness("Sequential Stress Operations", 2048, 1024);
     
     harness.runTest("Rapid file creation", [&]() {
         for (int i = 0; i < 10; i++) {
