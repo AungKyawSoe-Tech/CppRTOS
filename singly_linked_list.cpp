@@ -4,8 +4,6 @@
 #include <iostream>
 #include "singly_linked_list.h"
 
-using namespace std;
-
 // Check if list is empty
 template <typename T>
 bool SinglyLinkedList<T>::isEmpty() const {
@@ -164,7 +162,7 @@ bool SinglyLinkedList<T>::search(T value) const {
 template <typename T>
 T SinglyLinkedList<T>::get(int position) const {
     if (position < 0 || position >= size) {
-        throw out_of_range("Position out of range");
+        throw std::out_of_range("Position out of range");
     }
         
     Node<T>* current = head;
@@ -179,7 +177,7 @@ T SinglyLinkedList<T>::get(int position) const {
 template <typename T>
 T& SinglyLinkedList<T>::getRef(int position) {
     if (position < 0 || position >= size) {
-        throw out_of_range("Position out of range");
+        throw std::out_of_range("Position out of range");
     }
         
     Node<T>* current = head;
@@ -194,7 +192,7 @@ T& SinglyLinkedList<T>::getRef(int position) {
 template <typename T>
 const T& SinglyLinkedList<T>::getConstRef(int position) const {
     if (position < 0 || position >= size) {
-        throw out_of_range("Position out of range");
+        throw std::out_of_range("Position out of range");
     }
         
     Node<T>* current = head;
