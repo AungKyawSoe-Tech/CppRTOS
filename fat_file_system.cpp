@@ -1,4 +1,5 @@
 #include "fat_file_system.h"
+#include "src/rtos/hal/rtos_uart.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -13,7 +14,7 @@ using namespace std;
 // ============================================
 
 FATFileSystem::FATFileSystem(size_t disk_size_kb, size_t cluster_size_bytes, 
-                           const std::string& label)
+                           const RTOSString& label)
     : total_clusters(disk_size_kb * 1024 / cluster_size_bytes),
       cluster_size(cluster_size_bytes),
       free_clusters(total_clusters),
@@ -52,20 +53,19 @@ FATFileSystem::FATFileSystem(size_t disk_size_kb, size_t cluster_size_bytes,
         free_clusters--;
     }
     
-    cout << "FAT File System initialized" << endl;
-    cout << "Total clusters: " << total_clusters 
-         << " (" << (total_clusters * cluster_size / 1024) << " KB)" << endl;
-    cout << "Cluster size: " << cluster_size << " bytes" << endl;
-    cout << "Volume label: " << volume_label << endl;
+    rtos_printf("FAT File System initialized\n");
+    rtos_printf("Total clusters: %zu (%zu KB)\n", total_clusters, total_clusters * cluster_size / 1024);
+    rtos_printf("Cluster size: %zu bytes\n", cluster_size);
+    rtos_printf("Volume label: %s\n", volume_label.c_str());
 }
 
 FATFileSystem::~FATFileSystem() {
     // Close all open files
-    for (auto& pair : open_files) {
-        delete pair.second;
+    for (auto it = open_files.begin(); it != open_files.end(); ++it) {
+        delete it->value;
     }
     open_files.clear();
-    cout << "FAT File System shutdown" << endl;
+    rtos_printf("FAT File System shutdown\n");
 }
 
 // ============== HELPER METHODS ==============
@@ -80,8 +80,8 @@ int FATFileSystem::findFreeCluster() const {
     return -1;  // No free clusters
 }
 
-vector<int> FATFileSystem::getClusterChain(int start_cluster) const {
-    vector<int> chain;
+StaticVector<int, 512> FATFileSystem::getClusterChain(int start_cluster) const {
+    StaticVector<int, 512> chain;
     int current = start_cluster;
     
     while (current >= 0 && current < fat_table.getSize()) {
@@ -96,9 +96,10 @@ vector<int> FATFileSystem::getClusterChain(int start_cluster) const {
 }
 
 void FATFileSystem::freeClusterChain(int start_cluster) {
-    vector<int> chain = getClusterChain(start_cluster);
+    StaticVector<int, 512> chain = getClusterChain(start_cluster);
     
-    for (int cluster_num : chain) {
+    for (size_t i = 0; i < chain.size(); i++) {
+        int cluster_num = chain[i];
         FATCluster& cluster = fat_table.getRef(cluster_num);
         cluster.is_allocated = false;
         cluster.next_cluster = -2;  // Mark as free
@@ -106,17 +107,17 @@ void FATFileSystem::freeClusterChain(int start_cluster) {
     }
 }
 
-FileControlBlock* FATFileSystem::findFile(const std::string& path) {
+FileControlBlock* FATFileSystem::findFile(const RTOSString& path) {
     // Basic path-aware lookup: handle leading '/', directory separators, and basename matches.
     // This still uses a flat directory list but allows simple hierarchical-style paths.
 
     // Normalize input path: remove leading '/' and extract the target filename component.
-    std::string normalized_path = path;
-    if (!normalized_path.empty() && (normalized_path[0] == '/' || normalized_path[0] == '\\')) {
-        normalized_path.erase(0, 1);
+    RTOSString normalized_path = path;
+    if (normalized_path.length() > 0 && (normalized_path[0] == '/' || normalized_path[0] == '\\')) {
+        normalized_path = normalized_path.substr(1);
     }
-    std::string::size_type sep_pos = normalized_path.find_last_of("/\\");
-    std::string target_name = (sep_pos == std::string::npos)
+    size_t sep_pos = normalized_path.find_last_of("/\\");
+    RTOSString target_name = (sep_pos == RTOSString::npos)
                               ? normalized_path
                               : normalized_path.substr(sep_pos + 1);
 
@@ -124,22 +125,22 @@ FileControlBlock* FATFileSystem::findFile(const std::string& path) {
         FileControlBlock& fcb = directory.getRef(i);
 
         // Normalize stored filename in the same way.
-        std::string fcb_path = fcb.filename;
-        if (!fcb_path.empty() && (fcb_path[0] == '/' || fcb_path[0] == '\\')) {
-            fcb_path.erase(0, 1);
+        RTOSString fcb_path = fcb.filename;
+        if (fcb_path.length() > 0 && (fcb_path[0] == '/' || fcb_path[0] == '\\')) {
+            fcb_path = fcb_path.substr(1);
         }
 
         // Prefer exact normalized path match if available.
-        if (!normalized_path.empty() && fcb_path == normalized_path) {
+        if (normalized_path.length() > 0 && fcb_path == normalized_path) {
             return &fcb;
         }
 
         // Fallback: compare only the basename (last path component).
-        std::string::size_type fcb_sep_pos = fcb_path.find_last_of("/\\");
-        std::string fcb_name = (fcb_sep_pos == std::string::npos)
+        size_t fcb_sep_pos = fcb_path.find_last_of("/\\");
+        RTOSString fcb_name = (fcb_sep_pos == RTOSString::npos)
                                ? fcb_path
                                : fcb_path.substr(fcb_sep_pos + 1);
-        if (!target_name.empty() && fcb_name == target_name) {
+        if (target_name.length() > 0 && fcb_name == target_name) {
             return &fcb;
         }
     }
@@ -148,9 +149,9 @@ FileControlBlock* FATFileSystem::findFile(const std::string& path) {
 
 // ============== FILE OPERATIONS ==============
 
-bool FATFileSystem::createFile(const std::string& path, size_t initial_size) {
+bool FATFileSystem::createFile(const RTOSString& path, size_t initial_size) {
     if (fileExists(path)) {
-        cout << "Error: File already exists: " << path << endl;
+        rtos_printf("Error: File already exists: %s\n", path.c_str());
         return false;
     }
     
@@ -158,15 +159,15 @@ bool FATFileSystem::createFile(const std::string& path, size_t initial_size) {
     size_t clusters_needed = (initial_size + cluster_size - 1) / cluster_size;
     
     if (clusters_needed > free_clusters) {
-        cout << "Error: Not enough space. Need " << clusters_needed 
-             << " clusters, have " << free_clusters << endl;
+        rtos_printf("Error: Not enough space. Need %zu clusters, have %zu\n", 
+                    clusters_needed, free_clusters);
         return false;
     }
     
     // Allocate first cluster
     int first_cluster = findFreeCluster();
     if (first_cluster == -1) {
-        cout << "Error: No free clusters found" << endl;
+        rtos_printf("Error: No free clusters found\n");
         return false;
     }
     
@@ -183,7 +184,7 @@ bool FATFileSystem::createFile(const std::string& path, size_t initial_size) {
         if (next_cluster == -1) {
             // Out of space - free what we allocated
             freeClusterChain(first_cluster);
-            cout << "Error: Out of space during allocation" << endl;
+            rtos_printf("Error: Out of space during allocation\n");
             return false;
         }
         
@@ -211,14 +212,13 @@ bool FATFileSystem::createFile(const std::string& path, size_t initial_size) {
     // Add to directory
     directory.insertAtEnd(new_file);
     
-    cout << "Created file: " << path 
-         << " (size: " << initial_size << " bytes, "
-         << "clusters: " << clusters_allocated << ")" << endl;
+    rtos_printf("Created file: %s (size: %zu bytes, clusters: %d)\n",
+                path.c_str(), initial_size, clusters_allocated);
     
     return true;
 }
 
-bool FATFileSystem::deleteFile(const std::string& path) {
+bool FATFileSystem::deleteFile(const RTOSString& path) {
     // Find the file and its position in the directory
     int file_position = -1;
     FileControlBlock* file = nullptr;
@@ -233,12 +233,12 @@ bool FATFileSystem::deleteFile(const std::string& path) {
     }
     
     if (!file) {
-        cout << "Error: File not found: " << path << endl;
+        rtos_printf("Error: File not found: %s\n", path.c_str());
         return false;
     }
     
     if (file->is_directory) {
-        cout << "Error: " << path << " is a directory. Use deleteDirectory()" << endl;
+        rtos_printf("Error: %s is a directory. Use deleteDirectory()\n", path.c_str());
         return false;
     }
     
@@ -248,18 +248,18 @@ bool FATFileSystem::deleteFile(const std::string& path) {
     // Remove from directory
     directory.deleteFromPosition(file_position);
     
-    cout << "Deleted file: " << path << endl;
+    rtos_printf("Deleted file: %s\n", path.c_str());
     return true;
 }
 
-bool FATFileSystem::copyFile(const std::string& source, const std::string& dest) {
+bool FATFileSystem::copyFile(const RTOSString& source, const RTOSString& dest) {
     if (!fileExists(source)) {
-        cout << "Error: Source file not found: " << source << endl;
+        rtos_printf("Error: Source file not found: %s\n", source.c_str());
         return false;
     }
     
     if (fileExists(dest)) {
-        cout << "Error: Destination file already exists: " << dest << endl;
+        rtos_printf("Error: Destination file already exists: %s\n", dest.c_str());
         return false;
     }
     
@@ -274,20 +274,20 @@ bool FATFileSystem::copyFile(const std::string& source, const std::string& dest)
     // In real implementation, would copy data from clusters
     // For simulation, we just copy metadata
     
-    cout << "Copied file: " << source << " -> " << dest << endl;
+    rtos_printf("Copied file: %s -> %s\n", source.c_str(), dest.c_str());
     return true;
 }
 
-bool FATFileSystem::createDirectory(const std::string& path) {
+bool FATFileSystem::createDirectory(const RTOSString& path) {
     if (fileExists(path)) {
-        cout << "Error: Path already exists: " << path << endl;
+        rtos_printf("Error: Path already exists: %s\n", path.c_str());
         return false;
     }
     
     // Allocate a cluster for directory (simplified)
     int dir_cluster = findFreeCluster();
     if (dir_cluster == -1) {
-        cout << "Error: No space for directory" << endl;
+        rtos_printf("Error: No space for directory\n");
         return false;
     }
     
@@ -303,11 +303,11 @@ bool FATFileSystem::createDirectory(const std::string& path) {
     // Add to parent directory
     directory.insertAtEnd(new_dir);
     
-    cout << "Created directory: " << path << endl;
+    rtos_printf("Created directory: %s\n", path.c_str());
     return true;
 }
 
-bool FATFileSystem::deleteDirectory(const std::string& path) {
+bool FATFileSystem::deleteDirectory(const RTOSString& path) {
     // Find the directory and its position
     int dir_position = -1;
     FileControlBlock* dir = nullptr;
@@ -322,18 +322,18 @@ bool FATFileSystem::deleteDirectory(const std::string& path) {
     }
     
     if (!dir) {
-        cout << "Error: Directory not found: " << path << endl;
+        rtos_printf("Error: Directory not found: %s\n", path.c_str());
         return false;
     }
     
     if (!dir->is_directory) {
-        cout << "Error: " << path << " is not a directory. Use deleteFile()" << endl;
+        rtos_printf("Error: %s is not a directory. Use deleteFile()\n", path.c_str());
         return false;
     }
     
     // Check if directory is empty
     if (!dir->directory_entries.isEmpty()) {
-        cout << "Error: Directory is not empty: " << path << endl;
+        rtos_printf("Error: Directory is not empty: %s\n", path.c_str());
         return false;
     }
     
@@ -343,12 +343,12 @@ bool FATFileSystem::deleteDirectory(const std::string& path) {
     // Remove from directory list
     directory.deleteFromPosition(dir_position);
     
-    cout << "Deleted directory: " << path << endl;
+    rtos_printf("Deleted directory: %s\n", path.c_str());
     return true;
 }
 
-vector<DirectoryEntry> FATFileSystem::listDirectory(const std::string& path) {
-    vector<DirectoryEntry> entries;
+StaticVector<DirectoryEntry, 256> FATFileSystem::listDirectory(const RTOSString& path) {
+    StaticVector<DirectoryEntry, 256> entries;
     
     // Add special entries
     entries.push_back(DirectoryEntry(".", current_directory->start_cluster, 0, true));
@@ -403,15 +403,15 @@ FATFileSystem::FSInfo FATFileSystem::getFileSystemInfo() const {
 // ============== UTILITY METHODS ==============
 
 void FATFileSystem::displayFAT() const {
-    cout << "\n=== FAT Table (first 20 entries) ===" << endl;
-    cout << "Cluster | Status    | Next" << endl;
-    cout << "--------|-----------|------" << endl;
+    rtos_printf("\n=== FAT Table (first 20 entries) ===\n");
+    rtos_printf("Cluster | Status    | Next\n");
+    rtos_printf("--------|-----------|------\n");
     
     int limit = min(20, fat_table.getSize());
     for (int i = 0; i < limit; i++) {
         const FATCluster& cluster = fat_table.getConstRef(i);
         
-        string status;
+        const char* status;
         if (cluster.is_bad) {
             status = "BAD      ";
         } else if (cluster.is_allocated) {
@@ -420,39 +420,37 @@ void FATFileSystem::displayFAT() const {
             status = "FREE     ";
         }
         
-        string next;
         if (cluster.next_cluster == -1) {
-            next = "EOF";
+            rtos_printf("%7d | %s | EOF\n", i, status);
         } else if (cluster.next_cluster == -2) {
-            next = "---";
+            rtos_printf("%7d | %s | ---\n", i, status);
         } else {
-            next = to_string(cluster.next_cluster);
+            rtos_printf("%7d | %s | %d\n", i, status, cluster.next_cluster);
         }
-        
-        cout << setw(7) << i << " | " << status << " | " << next << endl;
     }
     
     if (fat_table.getSize() > 20) {
-        cout << "... (" << (fat_table.getSize() - 20) << " more entries)" << endl;
+        rtos_printf("... (%d more entries)\n", fat_table.getSize() - 20);
     }
 }
 
 void FATFileSystem::displayDirectoryTree() const {
-    cout << "\n=== Directory Tree ===" << endl;
+    rtos_printf("\n=== Directory Tree ===\n");
     
     for (int i = 0; i < directory.getSize(); i++) {
         const FileControlBlock& fcb = directory.getConstRef(i);
         
-        string type = fcb.is_directory ? "<DIR>" : "FILE";
-        string size = fcb.is_directory ? "" : to_string(fcb.file_size) + " bytes";
+        const char* type = fcb.is_directory ? "<DIR>" : "FILE";
         
-        cout << type << "\t" << fcb.filename;
-        if (!size.empty()) cout << "\t" << size;
-        cout << endl;
+        if (fcb.is_directory) {
+            rtos_printf("%s\t%s\n", type, fcb.filename.c_str());
+        } else {
+            rtos_printf("%s\t%s\t%zu bytes\n", type, fcb.filename.c_str(), fcb.file_size);
+        }
     }
 }
 
-bool FATFileSystem::fileExists(const std::string& path) const {
+bool FATFileSystem::fileExists(const RTOSString& path) const {
     for (int i = 0; i < directory.getSize(); i++) {
         if (directory.getConstRef(i).filename == path) {
             return true;
@@ -464,7 +462,7 @@ bool FATFileSystem::fileExists(const std::string& path) const {
 // ============== TESTING HELPERS ==============
 
 void FATFileSystem::createTestStructure() {
-    cout << "\n=== Creating Test File Structure ===" << endl;
+    rtos_printf("\n=== Creating Test File Structure ===\n");
     
     // Create some directories
     createDirectory("/system");
@@ -478,20 +476,20 @@ void FATFileSystem::createTestStructure() {
     createFile("/users/test.dat", 1024);
     createFile("/temp/cache.tmp", 256);
     
-    cout << "Test structure created successfully" << endl;
+    rtos_printf("Test structure created successfully\n");
 }
 
 void FATFileSystem::runIntegrityCheck() const {
-    cout << "\n=== File System Integrity Check ===" << endl;
+    rtos_printf("\n=== File System Integrity Check ===\n");
     
     FSInfo info = getFileSystemInfo();
     
-    cout << "Total space: " << info.total_space / 1024 << " KB" << endl;
-    cout << "Used space: " << info.used_space / 1024 << " KB" << endl;
-    cout << "Free space: " << info.free_space / 1024 << " KB" << endl;
-    cout << "Files: " << info.total_files << endl;
-    cout << "Directories: " << info.total_directories << endl;
-    cout << "Bad clusters: " << info.bad_clusters << endl;
+    rtos_printf("Total space: %zu KB\n", info.total_space / 1024);
+    rtos_printf("Used space: %zu KB\n", info.used_space / 1024);
+    rtos_printf("Free space: %zu KB\n", info.free_space / 1024);
+    rtos_printf("Files: %d\n", info.total_files);
+    rtos_printf("Directories: %d\n", info.total_directories);
+    rtos_printf("Bad clusters: %d\n", info.bad_clusters);
     
     // Check for orphaned clusters
     int allocated_count = 0;
@@ -501,17 +499,17 @@ void FATFileSystem::runIntegrityCheck() const {
         }
     }
     
-    cout << "Allocated clusters: " << allocated_count << endl;
+    rtos_printf("Allocated clusters: %d\n", allocated_count);
     
     if (allocated_count == (total_clusters - free_clusters - info.bad_clusters)) {
-        cout << "✓ Integrity check PASSED" << endl;
+        rtos_printf("✓ Integrity check PASSED\n");
     } else {
-        cout << "✗ Integrity check FAILED: Cluster count mismatch!" << endl;
+        rtos_printf("✗ Integrity check FAILED: Cluster count mismatch!\n");
     }
 }
 
 // Check if a path is a directory
-bool FATFileSystem::isDirectory(const std::string& path) const {
+bool FATFileSystem::isDirectory(const RTOSString& path) const {
     // Root directory
     if (path == "/" || path.empty()) {
         return true;

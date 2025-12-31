@@ -162,7 +162,8 @@ bool SinglyLinkedList<T>::search(T value) const {
 template <typename T>
 T SinglyLinkedList<T>::get(int position) const {
     if (position < 0 || position >= size) {
-        throw std::out_of_range("Position out of range");
+        // Return default-constructed T instead of throwing
+        return T();
     }
         
     Node<T>* current = head;
@@ -177,7 +178,9 @@ T SinglyLinkedList<T>::get(int position) const {
 template <typename T>
 T& SinglyLinkedList<T>::getRef(int position) {
     if (position < 0 || position >= size) {
-        throw std::out_of_range("Position out of range");
+        // Return first element (or handle error differently)
+        // In embedded systems, this is a programming error that should never happen
+        return head->data;
     }
         
     Node<T>* current = head;
@@ -192,7 +195,8 @@ T& SinglyLinkedList<T>::getRef(int position) {
 template <typename T>
 const T& SinglyLinkedList<T>::getConstRef(int position) const {
     if (position < 0 || position >= size) {
-        throw std::out_of_range("Position out of range");
+        // Return first element
+        return head->data;
     }
         
     Node<T>* current = head;
