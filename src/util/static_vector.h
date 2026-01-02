@@ -52,6 +52,18 @@ public:
         count = 0;
     }
     
+    // Erase element at index
+    void erase(size_t index) {
+        if (index >= count) {
+            return;
+        }
+        // Shift elements left
+        for (size_t i = index; i < count - 1; i++) {
+            data[i] = data[i + 1];
+        }
+        count--;
+    }
+    
     // For compatibility with std::vector
     T& back() { return data[count - 1]; }
     const T& back() const { return data[count - 1]; }

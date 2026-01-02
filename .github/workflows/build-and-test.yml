@@ -1,0 +1,70 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake g++ gcc
+    
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+    
+    - name: Build all targets
+      run: |
+        cd build
+        make -j$(nproc)
+    
+    - name: List built executables
+      run: |
+        echo "Built executables:"
+        ls -lh build/bin/
+    
+    - name: Run Kernel Tests
+      run: |
+        cd build
+        ./bin/kernel_test
+    
+    - name: Run RTOS Utility Tests
+      run: |
+        cd build
+        ./bin/rtos_util_test
+    
+    - name: Run FAT Filesystem Tests
+      run: |
+        cd build
+        ./bin/fat_comprehensive_test
+    
+    - name: Run Linked List Demo
+      run: |
+        cd build
+        ./bin/linkedlist_demo
+    
+    - name: Run CTest
+      run: |
+        cd build
+        ctest --output-on-failure --verbose
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: build/Testing/
+        retention-days: 30
