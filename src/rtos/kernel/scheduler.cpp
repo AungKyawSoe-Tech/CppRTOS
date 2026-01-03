@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "timer.h"
 #include "../hal/rtos_uart.h"
 #include <cstring>
 
@@ -239,6 +240,9 @@ void Scheduler::yield() {
 // System tick handler
 void Scheduler::tick() {
     tick_count++;
+    
+    // Process software timers
+    TimerAPI::processTick();
     
     // Update current task time slice
     if (current_task != nullptr && current_task->time_slice > 0) {

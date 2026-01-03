@@ -39,6 +39,7 @@ enum TaskPriority {
 
 // Type aliases
 using TaskHandle_t = void*;
+using TimerHandle_t = uint32_t;
 using TickType_t = uint32_t;
 
 #endif // RTOS_TYPES_H

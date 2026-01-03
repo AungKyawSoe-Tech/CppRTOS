@@ -68,6 +68,7 @@ add_test(NAME LinkedlistDemo COMMAND linkedlist_demo)
 add_test(NAME KernelTest COMMAND kernel_test)
 add_test(NAME SyncTest COMMAND sync_test)
 add_test(NAME MemoryTest COMMAND memory_test)
+add_test(NAME TimerTest COMMAND timer_test)
 
 # RTOS utility library
 add_library(rtos_util STATIC
@@ -89,6 +90,7 @@ add_library(rtos_kernel STATIC
     src/rtos/kernel/mutex.cpp
     src/rtos/kernel/semaphore.cpp
     src/rtos/kernel/queue.cpp
+    src/rtos/kernel/timer.cpp
 )
 
 # 4. RTOS utility test
@@ -125,8 +127,17 @@ add_executable(memory_test
 # Re-enable exceptions for memory test
 target_compile_options(memory_test PRIVATE -fexceptions)
 
+# 8. RTOS timer test
+add_executable(timer_test
+    test_timer.cpp
+)
+
+# Re-enable exceptions for timer test
+target_compile_options(timer_test PRIVATE -fexceptions)
+
 target_link_libraries(fat_comprehensive_test rtos_util rtos_hal)
 target_link_libraries(fat_interactive_test rtos_util rtos_hal)
 target_link_libraries(kernel_test rtos_kernel rtos_util rtos_hal)
 target_link_libraries(sync_test rtos_kernel rtos_util rtos_hal)
 target_link_libraries(memory_test rtos_util rtos_hal)
+target_link_libraries(timer_test rtos_kernel rtos_util rtos_hal)
