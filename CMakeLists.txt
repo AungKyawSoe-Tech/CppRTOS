@@ -67,10 +67,13 @@ add_test(NAME FATComprehensiveTest COMMAND fat_comprehensive_test)
 add_test(NAME LinkedlistDemo COMMAND linkedlist_demo)
 add_test(NAME KernelTest COMMAND kernel_test)
 add_test(NAME SyncTest COMMAND sync_test)
+add_test(NAME MemoryTest COMMAND memory_test)
 
 # RTOS utility library
 add_library(rtos_util STATIC
     src/util/rtos_string.cpp
+    src/util/rtos_heap.cpp
+    src/util/rtos_memory.cpp
 )
 
 # RTOS HAL library
@@ -114,10 +117,16 @@ add_executable(sync_test
 # Re-enable exceptions for sync test
 target_compile_options(sync_test PRIVATE -fexceptions)
 
+# 7. RTOS memory management test
+add_executable(memory_test
+    test_memory.cpp
+)
+
+# Re-enable exceptions for memory test
+target_compile_options(memory_test PRIVATE -fexceptions)
+
 target_link_libraries(fat_comprehensive_test rtos_util rtos_hal)
 target_link_libraries(fat_interactive_test rtos_util rtos_hal)
 target_link_libraries(kernel_test rtos_kernel rtos_util rtos_hal)
 target_link_libraries(sync_test rtos_kernel rtos_util rtos_hal)
-
-message(STATUS "Project: FAT File System Test Suite + RTOS")
-message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
+target_link_libraries(memory_test rtos_util rtos_hal)
