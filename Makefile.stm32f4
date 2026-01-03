@@ -1,0 +1,163 @@
+# Makefile for STM32F4 Hardware Port
+# Requires ARM GCC toolchain: arm-none-eabi-gcc
+
+# Target
+TARGET = rtos_stm32f4
+
+# Toolchain
+PREFIX = arm-none-eabi-
+CC = $(PREFIX)gcc
+CXX = $(PREFIX)g++
+AS = $(PREFIX)as
+LD = $(PREFIX)ld
+OBJCOPY = $(PREFIX)objcopy
+OBJDUMP = $(PREFIX)objdump
+SIZE = $(PREFIX)size
+GDB = $(PREFIX)gdb
+
+# Directories
+SRC_DIR = src
+BUILD_DIR = build_arm
+OBJ_DIR = $(BUILD_DIR)/obj
+
+# Source files
+ASM_SOURCES = \
+	$(SRC_DIR)/rtos/arch/arm/port.s \
+	$(SRC_DIR)/bsp/stm32f4/startup.s
+
+C_SOURCES = \
+
+
+CXX_SOURCES = \
+	test_hardware_stm32f4.cpp \
+	$(SRC_DIR)/rtos/arch/arm/port.cpp \
+	$(SRC_DIR)/bsp/stm32f4/bsp.cpp \
+	$(SRC_DIR)/rtos/kernel/scheduler.cpp \
+	$(SRC_DIR)/rtos/kernel/task.cpp \
+	$(SRC_DIR)/rtos/kernel/mutex.cpp \
+	$(SRC_DIR)/rtos/kernel/semaphore.cpp \
+	$(SRC_DIR)/rtos/kernel/queue.cpp \
+	$(SRC_DIR)/rtos/kernel/timer.cpp \
+	$(SRC_DIR)/rtos/hal/rtos_memory.cpp \
+	$(SRC_DIR)/rtos/hal/rtos_uart.cpp \
+	$(SRC_DIR)/util/rtos_string.cpp \
+	singly_linked_list.cpp
+
+# Include directories
+INCLUDES = \
+	-I. \
+	-I$(SRC_DIR)
+
+# MCU and architecture flags
+MCU = -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard
+
+# Defines
+DEFINES = \
+	-DARCH_ARM_CORTEX_M \
+	-DARM_FPU_PRESENT=1 \
+	-DSTM32F407xx \
+	-DUSE_FULL_ASSERT
+
+# Compiler flags
+CFLAGS = $(MCU) $(INCLUDES) $(DEFINES) \
+	-Wall -Wextra -Werror \
+	-fdata-sections -ffunction-sections \
+	-fno-common -fmessage-length=0 \
+	-O2 -g3
+
+CXXFLAGS = $(CFLAGS) \
+	-std=c++17 \
+	-fno-exceptions -fno-rtti \
+	-fno-use-cxa-atexit \
+	-fno-threadsafe-statics
+
+ASFLAGS = $(MCU) -g
+
+# Linker flags
+LDFLAGS = $(MCU) \
+	-T$(SRC_DIR)/bsp/stm32f4/STM32F407VG.ld \
+	-Wl,--gc-sections \
+	-Wl,-Map=$(BUILD_DIR)/$(TARGET).map \
+	--specs=nano.specs \
+	--specs=nosys.specs \
+	-lc -lm -lnosys
+
+# Object files
+ASM_OBJECTS = $(addprefix $(OBJ_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
+C_OBJECTS = $(addprefix $(OBJ_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
+CXX_OBJECTS = $(addprefix $(OBJ_DIR)/,$(notdir $(CXX_SOURCES:.cpp=.o)))
+
+ALL_OBJECTS = $(ASM_OBJECTS) $(C_OBJECTS) $(CXX_OBJECTS)
+
+# VPATH for source file search
+vpath %.s $(sort $(dir $(ASM_SOURCES)))
+vpath %.c $(sort $(dir $(C_SOURCES)))
+vpath %.cpp $(sort $(dir $(CXX_SOURCES)))
+
+# Default target
+all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
+	@echo "Build complete!"
+	@$(SIZE) $(BUILD_DIR)/$(TARGET).elf
+
+# Create directories
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+$(OBJ_DIR): | $(BUILD_DIR)
+	mkdir -p $(OBJ_DIR)
+
+# Compile assembly
+$(OBJ_DIR)/%.o: %.s | $(OBJ_DIR)
+	@echo "AS    $<"
+	@$(AS) $(ASFLAGS) -o $@ $<
+
+# Compile C
+$(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
+	@echo "CC    $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# Compile C++
+$(OBJ_DIR)/%.o: %.cpp | $(OBJ_DIR)
+	@echo "CXX   $<"
+	@$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+# Link
+$(BUILD_DIR)/$(TARGET).elf: $(ALL_OBJECTS)
+	@echo "LD    $@"
+	@$(CXX) $(ALL_OBJECTS) $(LDFLAGS) -o $@
+
+# Generate hex file
+$(BUILD_DIR)/$(TARGET).hex: $(BUILD_DIR)/$(TARGET).elf
+	@echo "HEX   $@"
+	@$(OBJCOPY) -O ihex $< $@
+
+# Generate binary file
+$(BUILD_DIR)/$(TARGET).bin: $(BUILD_DIR)/$(TARGET).elf
+	@echo "BIN   $@"
+	@$(OBJCOPY) -O binary $< $@
+
+# Disassembly
+disasm: $(BUILD_DIR)/$(TARGET).elf
+	@$(OBJDUMP) -d -S $< > $(BUILD_DIR)/$(TARGET).dis
+	@echo "Disassembly written to $(BUILD_DIR)/$(TARGET).dis"
+
+# Flash using OpenOCD
+flash: $(BUILD_DIR)/$(TARGET).elf
+	openocd -f interface/stlink.cfg -f target/stm32f4x.cfg \
+		-c "program $(BUILD_DIR)/$(TARGET).elf verify reset exit"
+
+# Debug with GDB
+debug: $(BUILD_DIR)/$(TARGET).elf
+	$(GDB) $(BUILD_DIR)/$(TARGET).elf \
+		-ex "target remote localhost:3333" \
+		-ex "monitor reset halt"
+
+# Clean
+clean:
+	rm -rf $(BUILD_DIR)
+
+# Print variables (for debugging makefile)
+print-%:
+	@echo $* = $($*)
+
+.PHONY: all clean flash debug disasm print-%

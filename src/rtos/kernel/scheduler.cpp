@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "timer.h"
 #include "../hal/rtos_uart.h"
+#include "../arch/port_interface.h"
 #include <cstring>
 
 // Initialize static instance
@@ -171,7 +172,7 @@ TaskControlBlock* Scheduler::selectNextTask() {
     return &idle_task_tcb;
 }
 
-// Context switching (simplified for now)
+// Context switching (hardware-based for ARM, simulation for x86)
 void Scheduler::switchContext(TaskControlBlock* next_task) {
     if (next_task == nullptr) {
         return;
@@ -190,8 +191,24 @@ void Scheduler::switchContext(TaskControlBlock* next_task) {
     
     current_task = next_task;
     
-    // TODO: Actual context switch (save/restore registers, stack pointer)
-    // For now, this is a cooperative scheduler simulation
+#ifdef ARCH_ARM_CORTEX_M
+    // Store stack pointers for assembly context switch
+    extern uint32_t* volatile current_task_sp;
+    extern uint32_t* volatile next_task_sp;
+    
+    if (prev_task != nullptr) {
+        current_task_sp = (uint32_t*)&(prev_task->stack_pointer);
+    } else {
+        current_task_sp = nullptr;
+    }
+    next_task_sp = (uint32_t*)&(next_task->stack_pointer);
+    
+    // Trigger PendSV for context switch
+    Port::triggerContextSwitch();
+#else
+    // Simulation mode - cooperative scheduling only
+    // No actual context switch
+#endif
 }
 
 // Start scheduler
@@ -202,8 +219,19 @@ void Scheduler::start() {
     }
     
     if (task_list.size() == 0) {
-        rtos_printf("[Scheduler] WARNING: No tasks to schedule!\n");
-    }
+#ifdef ARCH_ARM_CORTEX_M
+    // For ARM Cortex-M, start the hardware scheduler
+    // This will load the first task's context and never return
+    extern uint32_t* volatile next_task_sp;
+    next_task_sp = (uint32_t*)&(current_task->stack_pointer);
+    
+    Port::startFirstTask();
+    
+    // Should never reach here
+    while (1);
+#else
+    // For simulation, just return and let test harness drive execution
+#endif
     
     rtos_printf("[Scheduler] Starting with %d tasks...\n", task_list.size());
     

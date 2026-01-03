@@ -1,6 +1,7 @@
 #include "task.h"
 #include "scheduler.h"
 #include "../hal/rtos_uart.h"
+#include "../arch/port_interface.h"
 #include <cstring>
 #include <cstdlib>
 
@@ -47,12 +48,13 @@ RTOSResult create(TaskHandle_t* handle, const TaskCreateParams& params) {
     tcb->stack_base = stack;
     tcb->stack_size = params.stack_size;
     
-    // Initialize stack pointer to top of stack
-    // Stack grows downward on most architectures
-    tcb->stack_pointer = stack + (params.stack_size / sizeof(uint32_t)) - 1;
-    
     // Initialize stack with pattern for debugging
     memset(stack, 0xA5, params.stack_size);
+    
+    // Initialize stack pointer using port-specific function
+    // This sets up the stack frame for context switching
+    uint32_t* stack_top = stack + (params.stack_size / sizeof(uint32_t));
+    tcb->stack_pointer = Port::initializeStack(stack_top, params.function, params.params);
     
     // Add task to scheduler
     Scheduler* scheduler = Scheduler::getInstance();
