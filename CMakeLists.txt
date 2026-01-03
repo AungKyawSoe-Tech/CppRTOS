@@ -69,6 +69,7 @@ add_test(NAME KernelTest COMMAND kernel_test)
 add_test(NAME SyncTest COMMAND sync_test)
 add_test(NAME MemoryTest COMMAND memory_test)
 add_test(NAME TimerTest COMMAND timer_test)
+add_test(NAME FATRTOSTest COMMAND fat_rtos_test)
 
 # RTOS utility library
 add_library(rtos_util STATIC
@@ -135,9 +136,20 @@ add_executable(timer_test
 # Re-enable exceptions for timer test
 target_compile_options(timer_test PRIVATE -fexceptions)
 
+# 9. FAT filesystem RTOS integration test
+add_executable(fat_rtos_test
+    test_fat_rtos.cpp
+    fat_file_system.cpp
+    singly_linked_list.cpp
+)
+
+# Re-enable exceptions for FAT RTOS test
+target_compile_options(fat_rtos_test PRIVATE -fexceptions)
+
 target_link_libraries(fat_comprehensive_test rtos_util rtos_hal)
 target_link_libraries(fat_interactive_test rtos_util rtos_hal)
 target_link_libraries(kernel_test rtos_kernel rtos_util rtos_hal)
 target_link_libraries(sync_test rtos_kernel rtos_util rtos_hal)
 target_link_libraries(memory_test rtos_util rtos_hal)
 target_link_libraries(timer_test rtos_kernel rtos_util rtos_hal)
+target_link_libraries(fat_rtos_test rtos_kernel rtos_util rtos_hal)

@@ -5,7 +5,6 @@
 #include "src/util/rtos_string.h"
 #include "src/util/static_vector.h"
 #include "src/util/static_map.h"
-#include <memory>
 #include <ctime>
 
 // ============================================

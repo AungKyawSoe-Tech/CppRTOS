@@ -1,13 +1,6 @@
 #include "fat_file_system.h"
 #include "src/rtos/hal/rtos_uart.h"
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <algorithm>
-#include <iomanip>
 #include <cstring>
-
-using namespace std;
 
 // ============================================
 // IMPLEMENTATION
@@ -407,7 +400,7 @@ void FATFileSystem::displayFAT() const {
     rtos_printf("Cluster | Status    | Next\n");
     rtos_printf("--------|-----------|------\n");
     
-    int limit = min(20, fat_table.getSize());
+    int limit = (20 < fat_table.getSize()) ? 20 : fat_table.getSize();
     for (int i = 0; i < limit; i++) {
         const FATCluster& cluster = fat_table.getConstRef(i);
         
@@ -524,4 +517,56 @@ bool FATFileSystem::isDirectory(const RTOSString& path) const {
     }
     
     return false;
+}
+
+// ============== METADATA OPERATIONS ==============
+
+size_t FATFileSystem::getFileSize(const RTOSString& path) const {
+    for (int i = 0; i < directory.getSize(); i++) {
+        const FileControlBlock& fcb = directory.getConstRef(i);
+        if (fcb.filename == path) {
+            return fcb.file_size;
+        }
+    }
+    return 0;
+}
+
+time_t FATFileSystem::getCreateTime(const RTOSString& path) const {
+    for (int i = 0; i < directory.getSize(); i++) {
+        const FileControlBlock& fcb = directory.getConstRef(i);
+        if (fcb.filename == path) {
+            return fcb.create_time;
+        }
+    }
+    return 0;
+}
+
+time_t FATFileSystem::getModifyTime(const RTOSString& path) const {
+    for (int i = 0; i < directory.getSize(); i++) {
+        const FileControlBlock& fcb = directory.getConstRef(i);
+        if (fcb.filename == path) {
+            return fcb.modify_time;
+        }
+    }
+    return 0;
+}
+
+bool FATFileSystem::setAttributes(const RTOSString& path, bool hidden, bool readonly) {
+    for (int i = 0; i < directory.getSize(); i++) {
+        FileControlBlock& fcb = directory.getRef(i);
+        if (fcb.filename == path) {
+            fcb.is_hidden = hidden;
+            fcb.is_readonly = readonly;
+            return true;
+        }
+    }
+    return false;
+}
+
+void FATFileSystem::defragment() {
+    rtos_printf("[FAT] Defragmentation not yet implemented\n");
+    // TODO: Implement defragmentation algorithm
+    // 1. Identify fragmented files
+    // 2. Move clusters to contiguous regions
+    // 3. Update FAT chain pointers
 }
