@@ -66,6 +66,7 @@ enable_testing()
 add_test(NAME FATComprehensiveTest COMMAND fat_comprehensive_test)
 add_test(NAME LinkedlistDemo COMMAND linkedlist_demo)
 add_test(NAME KernelTest COMMAND kernel_test)
+add_test(NAME SyncTest COMMAND sync_test)
 
 # RTOS utility library
 add_library(rtos_util STATIC
@@ -82,6 +83,9 @@ add_library(rtos_kernel STATIC
     src/rtos/kernel/scheduler.cpp
     src/rtos/kernel/task.cpp
     src/rtos/kernel/context.cpp
+    src/rtos/kernel/mutex.cpp
+    src/rtos/kernel/semaphore.cpp
+    src/rtos/kernel/queue.cpp
 )
 
 # 4. RTOS utility test
@@ -102,9 +106,18 @@ add_executable(kernel_test
 # Re-enable exceptions for kernel test
 target_compile_options(kernel_test PRIVATE -fexceptions)
 
+# 6. RTOS synchronization test
+add_executable(sync_test
+    test_sync.cpp
+)
+
+# Re-enable exceptions for sync test
+target_compile_options(sync_test PRIVATE -fexceptions)
+
 target_link_libraries(fat_comprehensive_test rtos_util rtos_hal)
 target_link_libraries(fat_interactive_test rtos_util rtos_hal)
 target_link_libraries(kernel_test rtos_kernel rtos_util rtos_hal)
+target_link_libraries(sync_test rtos_kernel rtos_util rtos_hal)
 
 message(STATUS "Project: FAT File System Test Suite + RTOS")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
